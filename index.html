@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meus Flashcards de Estudo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            font-family: 'Inter', sans-serif; 
+            /* NOVO: Transições suaves de cor para a troca de tema */
+            background-color: #F8F7F4; 
+            color: #1E293B;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        
+        /* NOVO: Estilos para o Modo Escuro */
+        html.dark body {
+            background-color: #0B1120;
+            color: #CBD5E1;
+        }
+        html.dark .nav-button.active, html.dark .nav-button:hover {
+            background-color: #1E293B;
+            color: #F1F5F9;
+        }
+        html.dark ::-webkit-scrollbar-track { background: #1E293B; }
+        html.dark ::-webkit-scrollbar-thumb { background: #475569; }
+        html.dark ::-webkit-scrollbar-thumb:hover { background: #64748B; }
+
+        .nav-button { transition: all 0.2s ease-in-out; }
+        .nav-button.active, .nav-button:hover { background-color: #E2E8F0; color: #0F172A; transform: translateX(4px); }
+        .content-section { display: none; }
+        .content-section.active { display: block; animation: fadeIn 0.5s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .flashcard-container { perspective: 1000px; }
+        .flashcard { transition: transform 0.6s; transform-style: preserve-3d; }
+        .flashcard.is-flipped { transform: rotateY(180deg); }
+        .flashcard-front, .flashcard-back { -webkit-backface-visibility: hidden; backface-visibility: hidden; }
+        .flashcard-back { transform: rotateY(180deg); }
+    </style>
+</head>
+<body class="antialiased">
+    <div class="flex flex-col md:flex-row min-h-screen">
+        <aside id="sidebar" class="w-full md:w-64 lg:w-80 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-r border-slate-200 dark:border-slate-700 p-4 md:p-6 shrink-0 flex flex-col">
+            <div class="flex justify-between items-center mb-4">
+                <h1 class="text-xl font-bold text-slate-800 dark:text-slate-200">Minhas Matérias</h1>
+                <button id="theme-toggle" type="button" class="text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 focus:outline-none rounded-lg text-sm p-2.5">
+                    <svg id="theme-toggle-dark-icon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
+                    <svg id="theme-toggle-light-icon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm-.707 8.486a1 1 0 011.414 0l.707.707a1 1 0 01-1.414 1.414l-.707-.707a1 1 0 010-1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" fill-rule="evenodd" clip-rule="evenodd"></path></svg>
+                </button>
+            </div>
+            <div class="relative mb-4">
+                <input type="text" id="search-input" placeholder="Buscar matéria..." class="w-full pl-8 pr-4 py-2 border border-slate-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-violet-500 bg-white dark:bg-slate-800 dark:text-slate-300">
+                <span class="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
+            </div>
+            <nav id="navigation" class="space-y-1 overflow-y-auto flex-1"></nav>
+        </aside>
+        <main class="flex-1 p-4 md:p-8 lg:p-10 overflow-y-auto">
+            <div id="content-area">
+                 <div class="text-center py-20">
+                    <h2 class="text-2xl font-bold text-slate-700 dark:text-slate-300">Selecione uma matéria para começar</h2>
+                    <p class="text-slate-500 dark:text-slate-500 mt-2">Navegue pelas suas matérias e revise com os flashcards.</p>
+                </div>
+            </div>
+        </main>
+    </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const navigation = document.getElementById('navigation');
+            const contentArea = document.getElementById('content-area');
+            const searchInput = document.getElementById('search-input');
+            let appData = {}; 
+
+            // --- NOVO: LÓGICA COMPLETA DO MODO ESCURO ---
+            const themeToggleBtn = document.getElementById('theme-toggle');
+            const themeToggleDarkIcon = document.getElementById('theme-toggle-dark-icon');
+            const themeToggleLightIcon = document.getElementById('theme-toggle-light-icon');
+
+            // Verifica o tema salvo no localStorage ou a preferência do sistema
+            if (localStorage.getItem('color-theme') === 'dark' || (!('color-theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+                themeToggleLightIcon.classList.remove('hidden');
+            } else {
+                document.documentElement.classList.remove('dark');
+                themeToggleDarkIcon.classList.remove('hidden');
+            }
+
+            // Adiciona o evento de clique no botão
+            themeToggleBtn.addEventListener('click', function() {
+                // Alterna os ícones
+                themeToggleDarkIcon.classList.toggle('hidden');
+                themeToggleLightIcon.classList.toggle('hidden');
+
+                // Se o tema já estava salvo, alterna e atualiza o localStorage
+                if (localStorage.getItem('color-theme')) {
+                    if (localStorage.getItem('color-theme') === 'light') {
+                        document.documentElement.classList.add('dark');
+                        localStorage.setItem('color-theme', 'dark');
+                    } else {
+                        document.documentElement.classList.remove('dark');
+                        localStorage.setItem('color-theme', 'light');
+                    }
+                // Se não estava salvo, define com base na classe atual e salva
+                } else {
+                    if (document.documentElement.classList.contains('dark')) {
+                        document.documentElement.classList.remove('dark');
+                        localStorage.setItem('color-theme', 'light');
+                    } else {
+                        document.documentElement.classList.add('dark');
+                        localStorage.setItem('color-theme', 'dark');
+                    }
+                }
+            });
+            // --- FIM DA LÓGICA DO MODO ESCURO ---
+
+
+            fetch('data.json')
+                .then(response => response.json())
+                .then(data => {
+                    appData = data;
+                    renderNavigation();
+                })
+                .catch(error => {
+                    console.error('Erro ao carregar o JSON:', error);
+                    contentArea.innerHTML = `<div class="text-center py-20 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative"><h2 class="text-2xl font-bold">Falha ao carregar os dados!</h2><p class="mt-2">Verifique se o arquivo <strong>data.json</strong> existe e se você iniciou o servidor local (Passo 4).</p></div>`;
+                });
+
+            function renderContent(materiaId) {
+                const materia = appData.materias.find(m => m.id === materiaId);
+                if (!materia) return;
+                // NOVO: Adicionado dark: classes para os elementos gerados
+                contentArea.innerHTML = `
+                    <div id="${materia.id}" class="content-section active space-y-8">
+                        <header>
+                            <h2 class="text-3xl font-bold text-slate-900 dark:text-slate-100">${materia.title}</h2>
+                            <p class="text-lg text-slate-600 dark:text-slate-400 mt-1">Total de ${materia.flashcards.length} flashcards.</p>
+                        </header>
+                        <section>
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                ${materia.flashcards.map(card => `
+                                    <div class="flashcard-container h-56" onclick="this.querySelector('.flashcard').classList.toggle('is-flipped')">
+                                        <div class="flashcard relative w-full h-full cursor-pointer">
+                                            <div class="flashcard-front absolute w-full h-full bg-violet-600 dark:bg-violet-700 rounded-lg shadow-lg flex items-center justify-center p-4 text-center">
+                                                <p class="text-lg font-semibold text-white">${card.q}</p>
+                                            </div>
+                                            <div class="flashcard-back absolute w-full h-full bg-white dark:bg-slate-800 rounded-lg shadow-lg flex items-center justify-center p-4 text-center border-2 border-violet-500 dark:border-violet-600 overflow-y-auto">
+                                                <p class="text-md font-medium text-slate-800 dark:text-slate-200">${card.a}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </section>
+                    </div>`;
+            }
+
+            function renderNavigation(filter = '') {
+                navigation.innerHTML = '';
+                // NOVO: Adicionado dark:text-slate-400
+                const filteredMaterias = appData.materias.filter(materia => materia.title.toLowerCase().includes(filter.toLowerCase()));
+                filteredMaterias.forEach(materia => {
+                    const button = document.createElement('button');
+                    button.className = 'nav-button w-full text-left px-4 py-2 rounded-md text-slate-600 dark:text-slate-400 font-medium';
+                    button.textContent = materia.title;
+                    button.dataset.materiaId = materia.id;
+                    navigation.appendChild(button);
+                });
+            }
+
+            navigation.addEventListener('click', e => {
+                if (e.target.tagName === 'BUTTON') {
+                    document.querySelectorAll('.nav-button').forEach(btn => btn.classList.remove('active'));
+                    e.target.classList.add('active');
+                    renderContent(e.target.dataset.materiaId);
+                }
+            });
+            searchInput.addEventListener('input', e => renderNavigation(e.target.value));
+        });
+    </script>
+</body>
+</html>
